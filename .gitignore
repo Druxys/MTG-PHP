@@ -955,4 +955,5 @@ cwallet.sso.lck
 ### GPG template
 secring.*
 
+.idea/*
 
