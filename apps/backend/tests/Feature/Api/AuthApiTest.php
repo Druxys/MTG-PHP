@@ -12,12 +12,9 @@ class AuthApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * @return void
-     */
     public function test_register_returns_token_and_user_payload(): void
     {
-        $response = $this->postJson('/backend/auth/register', [
+        $response = $this->postJson('/api/auth/register', [
             'name' => 'Paul Turpin',
             'email' => 'paul@example.com',
             'password' => 'password123',
@@ -38,9 +35,6 @@ class AuthApiTest extends TestCase
         $this->assertDatabaseCount('api_tokens', 1);
     }
 
-    /**
-     * @return void
-     */
     public function test_login_with_valid_credentials_returns_token(): void
     {
         $user = User::factory()->create([
@@ -48,7 +42,7 @@ class AuthApiTest extends TestCase
             'password' => 'password123',
         ]);
 
-        $response = $this->postJson('/backend/auth/login', [
+        $response = $this->postJson('/api/auth/login', [
             'email' => 'paul@example.com',
             'password' => 'password123',
         ]);
@@ -61,9 +55,6 @@ class AuthApiTest extends TestCase
         $this->assertDatabaseCount('api_tokens', 1);
     }
 
-    /**
-     * @return void
-     */
     public function test_login_with_invalid_credentials_returns_unauthorized(): void
     {
         User::factory()->create([
@@ -71,7 +62,7 @@ class AuthApiTest extends TestCase
             'password' => Hash::make('password123'),
         ]);
 
-        $response = $this->postJson('/backend/auth/login', [
+        $response = $this->postJson('/api/auth/login', [
             'email' => 'paul@example.com',
             'password' => 'wrong-password',
         ]);
@@ -79,25 +70,19 @@ class AuthApiTest extends TestCase
         $response->assertUnauthorized();
     }
 
-    /**
-     * @return void
-     */
     public function test_profile_requires_valid_api_token(): void
     {
-        $response = $this->getJson('/backend/auth/profile');
+        $response = $this->getJson('/api/auth/profile');
 
         $response->assertUnauthorized();
     }
 
-    /**
-     * @return void
-     */
     public function test_profile_returns_authenticated_user_with_valid_token(): void
     {
         $user = User::factory()->create();
-        $token = app(\App\Services\ApiTokenService::class)->issueToken($user)['token'];
+        $token = app(ApiTokenService::class)->issueToken($user)['token'];
 
-        $response = $this->withToken($token)->getJson('/backend/auth/profile');
+        $response = $this->withToken($token)->getJson('/api/auth/profile');
 
         $response
             ->assertOk()
@@ -105,52 +90,43 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('user.email', $user->email);
     }
 
-    /**
-     * @return void
-     */
     public function test_logout_revokes_current_token(): void
     {
         $user = User::factory()->create();
-        $token = app(\App\Services\ApiTokenService::class)->issueToken($user)['token'];
+        $token = app(ApiTokenService::class)->issueToken($user)['token'];
 
-        $logoutResponse = $this->withToken($token)->postJson('/backend/auth/logout');
+        $logoutResponse = $this->withToken($token)->postJson('/api/auth/logout');
         $logoutResponse->assertOk();
 
-        $profileResponse = $this->withToken($token)->getJson('/backend/auth/profile');
+        $profileResponse = $this->withToken($token)->getJson('/api/auth/profile');
         $profileResponse->assertUnauthorized();
 
         $this->assertDatabaseCount('api_tokens', 0);
     }
 
-    /**
-     * @return void
-     */
     public function test_register_is_rate_limited_after_five_attempts(): void
     {
         for ($i = 0; $i < 5; $i++) {
-            $this->postJson('/backend/auth/register', ['email' => 'invalid']);
+            $this->postJson('/api/auth/register', ['email' => 'invalid']);
         }
 
-        $response = $this->postJson('/backend/auth/register', ['email' => 'invalid']);
+        $response = $this->postJson('/api/auth/register', ['email' => 'invalid']);
 
         $response->assertStatus(429);
     }
 
-    /**
-     * @return void
-     */
     public function test_login_is_rate_limited_after_five_attempts(): void
     {
         User::factory()->create(['email' => 'paul@example.com']);
 
         for ($i = 0; $i < 5; $i++) {
-            $this->postJson('/backend/auth/login', [
+            $this->postJson('/api/auth/login', [
                 'email' => 'paul@example.com',
                 'password' => 'wrong-password',
             ]);
         }
 
-        $response = $this->postJson('/backend/auth/login', [
+        $response = $this->postJson('/api/auth/login', [
             'email' => 'paul@example.com',
             'password' => 'wrong-password',
         ]);
@@ -158,15 +134,12 @@ class AuthApiTest extends TestCase
         $response->assertStatus(429);
     }
 
-    /**
-     * @return void
-     */
     public function test_refresh_returns_new_token_and_revokes_old_one(): void
     {
         $user = User::factory()->create();
         $oldToken = app(ApiTokenService::class)->issueToken($user)['token'];
 
-        $response = $this->withToken($oldToken)->postJson('/backend/auth/refresh');
+        $response = $this->withToken($oldToken)->postJson('/api/auth/refresh');
 
         $response
             ->assertOk()
@@ -174,22 +147,15 @@ class AuthApiTest extends TestCase
 
         $newToken = $response->json('token');
 
-        $this->withToken($oldToken)->getJson('/backend/auth/profile')->assertUnauthorized();
-        $this->withToken($newToken)->getJson('/backend/auth/profile')->assertOk();
+        $this->withToken($oldToken)->getJson('/api/auth/profile')->assertUnauthorized();
+        $this->withToken($newToken)->getJson('/api/auth/profile')->assertOk();
         $this->assertDatabaseCount('api_tokens', 1);
     }
 
-    /**
-     * @return void
-     */
     public function test_refresh_requires_valid_token(): void
     {
-        $response = $this->postJson('/backend/auth/refresh');
+        $response = $this->postJson('/api/auth/refresh');
 
         $response->assertUnauthorized();
     }
 }
-
-
-
-

@@ -10,10 +10,38 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use OpenApi\Attributes as OA;
 use Random\RandomException;
 
 class CardController extends Controller
 {
+    #[OA\Get(
+        path: '/api/cards',
+        tags: ['Cards'],
+        summary: 'List cards with filters',
+        parameters: [
+            new OA\Parameter(name: 'name', in: 'query', required: false, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'type', in: 'query', required: false, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'rarity', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['common', 'uncommon', 'rare', 'mythic'])),
+            new OA\Parameter(name: 'colors', in: 'query', required: false, description: 'CSV list, e.g. R,G', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1)),
+            new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 10)),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Paginated card list',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'cards', type: 'array', items: new OA\Items(ref: '#/components/schemas/Card')),
+                        new OA\Property(property: 'pagination', ref: '#/components/schemas/Pagination'),
+                    ],
+                    type: 'object'
+                )
+            ),
+            new OA\Response(response: 400, description: 'Invalid parameters', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
+        ]
+    )]
     public function index(Request $request)
     {
         $validator = Validator::make($request->query(), [
@@ -74,11 +102,68 @@ class CardController extends Controller
         ]);
     }
 
+    #[OA\Get(
+        path: '/api/cards/{card}',
+        tags: ['Cards'],
+        summary: 'Get a card by ID',
+        parameters: [
+            new OA\Parameter(name: 'card', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Card found', content: new OA\JsonContent(ref: '#/components/schemas/Card')),
+            new OA\Response(response: 404, description: 'Card not found'),
+        ]
+    )]
     public function show(Card $card)
     {
         return response()->json((new CardResource($card))->resolve());
     }
 
+    #[OA\Post(
+        path: '/api/cards',
+        tags: ['Cards'],
+        summary: 'Create a card',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: [
+                new OA\MediaType(
+                    mediaType: 'multipart/form-data',
+                    schema: new OA\Schema(
+                        required: ['name', 'rarity', 'type', 'text'],
+                        properties: [
+                            new OA\Property(property: 'name', type: 'string'),
+                            new OA\Property(property: 'rarity', type: 'string', enum: ['common', 'uncommon', 'rare', 'mythic']),
+                            new OA\Property(property: 'type', type: 'string'),
+                            new OA\Property(property: 'text', type: 'string'),
+                            new OA\Property(property: 'manaCost', type: 'string', nullable: true),
+                            new OA\Property(property: 'convertedManaCost', type: 'number', format: 'float', nullable: true),
+                            new OA\Property(property: 'colors', type: 'array', nullable: true, items: new OA\Items(type: 'string', enum: ['W', 'U', 'B', 'R', 'G'])),
+                            new OA\Property(property: 'scryfallId', type: 'string', nullable: true),
+                            new OA\Property(property: 'image', type: 'string', format: 'binary', nullable: true),
+                        ],
+                        type: 'object'
+                    )
+                ),
+            ]
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Card created',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'message', type: 'string'),
+                        new OA\Property(property: 'card', ref: '#/components/schemas/Card'),
+                        new OA\Property(property: 'hasImage', type: 'boolean'),
+                    ],
+                    type: 'object'
+                )
+            ),
+            new OA\Response(response: 400, description: 'Validation failed', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
+            new OA\Response(response: 401, description: 'Unauthenticated', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
+        ]
+    )]
     /**
      * @throws RandomException
      */
@@ -161,6 +246,25 @@ class CardController extends Controller
         ], 201);
     }
 
+    #[OA\Get(
+        path: '/api/cards/{card}/image',
+        tags: ['Cards'],
+        summary: 'Get the decrypted card image',
+        parameters: [
+            new OA\Parameter(name: 'card', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Raw image payload',
+                content: new OA\MediaType(
+                    mediaType: 'image/jpeg',
+                    schema: new OA\Schema(type: 'string', format: 'binary')
+                )
+            ),
+            new OA\Response(response: 404, description: 'Image not found', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
+        ]
+    )]
     public function image(Card $card)
     {
         if (! filled($card->image_path) || ! Storage::disk('local')->exists($card->image_path)) {

@@ -69,3 +69,19 @@ php artisan route:list
 php artisan cards:import-scryfall --count=100 --delay=10
 npm run build
 ```
+
+## Swagger / OpenAPI
+
+Generate API docs:
+
+```bash
+php artisan l5-swagger:generate
+```
+
+Then open:
+
+- Swagger UI: `http://127.0.0.1:8000/api/docs`
+- OpenAPI JSON: `http://127.0.0.1:8000/api/openapi`
+
+The generated files are stored in `storage/api-docs`.
+

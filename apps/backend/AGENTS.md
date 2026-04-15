@@ -35,7 +35,6 @@ This project has domain-specific skills available. You MUST activate the relevan
 ## Verification Scripts
 
 - Do not create verification scripts or tinker when tests cover that functionality and prove they work. Unit and feature tests are more important.
-- For first-time local bootstrap, prefer `composer run setup` (installs dependencies, prepares `.env`, generates app key, runs migrations, installs Node dependencies, and builds assets).
 
 ## Application Structure & Architecture
 
@@ -44,7 +43,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 ## Frontend Bundling
 
-- If the user doesn't see a frontend change reflected in the UI, ask them to run `composer run dev` first (runs server, queue listener, pail logs, and Vite). Use `npm run dev` or `npm run build` for frontend-only workflows.
+- If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
 
 ## Documentation Files
 
@@ -65,7 +64,6 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Use `database-schema` to inspect table structure before writing migrations or models.
 - Use `get-absolute-url` to resolve the correct scheme, domain, and port for project URLs. Always use this before sharing a URL with the user.
 - Use `browser-logs` to read browser logs, errors, and exceptions. Only recent logs are useful, ignore old entries.
-- `composer update` already triggers `php artisan boost:update --ansi` via `post-update-cmd`; do not run a second manual Boost update unless Composer scripts were skipped.
 
 ## Searching Documentation (IMPORTANT)
 
@@ -160,7 +158,6 @@ This project has domain-specific skills available. You MUST activate the relevan
 ## Running Tests
 
 - Run the minimal number of tests, using an appropriate filter, before finalizing.
-- For default suite runs, prefer `composer test` (it clears config, then runs `php artisan test`).
 - To run all tests: `php artisan test --compact`.
 - To run all tests in a file: `php artisan test --compact tests/Feature/ExampleTest.php`.
 - To filter on a particular test name: `php artisan test --compact --filter=testName` (recommended after making a change to a related file).
