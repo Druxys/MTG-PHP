@@ -1,32 +1,32 @@
 # MTG-PHP
 
-Projet MTG avec backend Laravel (actif) et frontend en cours de construction.
+MTG project with an active Laravel backend and a frontend currently under construction.
 
 ## Backend
 
-- Dossier: [`apps/backend`](apps/backend)
-- Documentation backend: [`apps/backend/README.md`](apps/backend/README.md)
-- URL locale typique: `http://127.0.0.1:8000`
+- Folder: [`apps/backend`](apps/backend)
+- Backend documentation: [`apps/backend/README.md`](apps/backend/README.md)
+- Typical local URL: `http://127.0.0.1:8000`
 
-### Démarrage rapide
+### Quick Start
 
-Depuis `apps/backend`:
+From `apps/backend`:
 
 ```bash
 composer run setup
 composer run dev
 ```
 
-### Infos utiles
+### Useful Info
 
-- Base de données par défaut: MySQL (`DB_DATABASE=mtg` dans `.env.example`)
-- Lancer les tests:
+- Default database: MySQL (`DB_DATABASE=mtg` in `.env.example`)
+- Run tests:
 
 ```bash
 composer test
 ```
 
-- Commandes pratiques:
+- Handy commands:
 
 ```bash
 php artisan route:list
