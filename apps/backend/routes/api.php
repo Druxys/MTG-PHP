@@ -20,5 +20,9 @@ Route::prefix('auth')->group(function (): void {
 Route::get('/cards', [CardController::class, 'index']);
 Route::get('/cards/{card}', [CardController::class, 'show']);
 Route::get('/cards/{card}/image', [CardController::class, 'image']);
-Route::middleware('backend.token')->post('/cards', [CardController::class, 'store']);
+Route::middleware('backend.token')->group(function (): void {
+    Route::post('/cards', [CardController::class, 'store']);
+    Route::put('/cards/{card}', [CardController::class, 'update']);
+    Route::delete('/cards/{card}', [CardController::class, 'destroy']);
+});
 

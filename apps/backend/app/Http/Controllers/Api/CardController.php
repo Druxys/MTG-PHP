@@ -265,6 +265,176 @@ class CardController extends Controller
             new OA\Response(response: 404, description: 'Image not found', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
         ]
     )]
+    #[OA\Put(
+        path: '/api/cards/{card}',
+        tags: ['Cards'],
+        summary: 'Update a card',
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(name: 'card', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: [
+                new OA\MediaType(
+                    mediaType: 'multipart/form-data',
+                    schema: new OA\Schema(
+                        properties: [
+                            new OA\Property(property: 'name', type: 'string'),
+                            new OA\Property(property: 'rarity', type: 'string', enum: ['common', 'uncommon', 'rare', 'mythic']),
+                            new OA\Property(property: 'type', type: 'string'),
+                            new OA\Property(property: 'text', type: 'string'),
+                            new OA\Property(property: 'manaCost', type: 'string', nullable: true),
+                            new OA\Property(property: 'convertedManaCost', type: 'number', format: 'float', nullable: true),
+                            new OA\Property(property: 'colors', type: 'array', nullable: true, items: new OA\Items(type: 'string', enum: ['W', 'U', 'B', 'R', 'G'])),
+                            new OA\Property(property: 'scryfallId', type: 'string', nullable: true),
+                            new OA\Property(property: 'image', type: 'string', format: 'binary', nullable: true),
+                        ],
+                        type: 'object'
+                    )
+                ),
+            ]
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Card updated',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'message', type: 'string'),
+                        new OA\Property(property: 'card', ref: '#/components/schemas/Card'),
+                    ],
+                    type: 'object'
+                )
+            ),
+            new OA\Response(response: 400, description: 'Validation failed', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
+            new OA\Response(response: 401, description: 'Unauthenticated', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
+            new OA\Response(response: 404, description: 'Card not found'),
+        ]
+    )]
+    /**
+     * @throws RandomException
+     */
+    public function update(Request $request, Card $card)
+    {
+        $payload = $request->all();
+
+        if (is_string($request->input('colors'))) {
+            $decodedColors = json_decode($request->string('colors')->value(), true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $payload['colors'] = $decodedColors;
+            }
+        }
+
+        $validator = Validator::make($payload, [
+            'name'               => ['sometimes', 'string', 'min:1'],
+            'rarity'             => ['sometimes', Rule::in(['common', 'uncommon', 'rare', 'mythic'])],
+            'type'               => ['sometimes', 'string', 'min:1'],
+            'text'               => ['sometimes', 'string'],
+            'manaCost'           => ['nullable', 'string'],
+            'convertedManaCost'  => ['nullable', 'numeric', 'min:0'],
+            'colors'             => ['nullable', 'array'],
+            'colors.*'           => ['string', Rule::in(['W', 'U', 'B', 'R', 'G'])],
+            'scryfallId'         => ['nullable', 'string', Rule::unique('cards', 'scryfall_id')->ignore($card->id)],
+            'image'              => ['nullable', 'file', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:10240'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'error'   => 'Validation failed',
+                'details' => $validator->errors()->all(),
+            ], 400);
+        }
+
+        $validated = $validator->validated();
+
+        if (array_key_exists('name', $validated)) {
+            $card->name = trim((string) $validated['name']);
+        }
+        if (array_key_exists('rarity', $validated)) {
+            $card->rarity = $validated['rarity'];
+        }
+        if (array_key_exists('type', $validated)) {
+            $card->type = trim((string) $validated['type']);
+        }
+        if (array_key_exists('text', $validated)) {
+            $card->text = $validated['text'];
+        }
+        if (array_key_exists('manaCost', $validated)) {
+            $card->mana_cost = $validated['manaCost'];
+        }
+        if (array_key_exists('convertedManaCost', $validated)) {
+            $card->converted_mana_cost = $validated['convertedManaCost'];
+        }
+        if (array_key_exists('colors', $validated)) {
+            $card->colors = $validated['colors'] ?? [];
+        }
+        if (array_key_exists('scryfallId', $validated)) {
+            $card->scryfall_id = $validated['scryfallId'];
+        }
+
+        if ($request->hasFile('image')) {
+            // Supprimer l'ancienne image si elle existe
+            if (filled($card->image_path) && Storage::disk('local')->exists($card->image_path)) {
+                Storage::disk('local')->delete($card->image_path);
+            }
+
+            $file = $request->file('image');
+            $imageContent = file_get_contents($file->getRealPath());
+
+            if (! is_string($imageContent)) {
+                return response()->json(['error' => 'Failed to process uploaded image'], 500);
+            }
+
+            $iv = random_bytes(16);
+            $secret = (string) config('app.key');
+            $key = hash('sha256', $secret, true);
+            $encrypted = openssl_encrypt($imageContent, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+
+            if ($encrypted === false) {
+                return response()->json(['error' => 'Failed to process uploaded image'], 500);
+            }
+
+            $path = 'cards/encrypted/'.uniqid('card_', true).'.enc';
+            Storage::disk('local')->put($path, $iv.$encrypted);
+
+            $card->image_path = $path;
+            $card->image_mime = $file->getClientMimeType() ?: 'image/jpeg';
+        }
+
+        $card->save();
+
+        return response()->json([
+            'message' => 'Card updated successfully',
+            'card'    => (new CardResource($card))->resolve(),
+        ]);
+    }
+
+    #[OA\Delete(
+        path: '/api/cards/{card}',
+        tags: ['Cards'],
+        summary: 'Delete a card',
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(name: 'card', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Card deleted', content: new OA\JsonContent(properties: [new OA\Property(property: 'message', type: 'string')], type: 'object')),
+            new OA\Response(response: 401, description: 'Unauthenticated', content: new OA\JsonContent(ref: '#/components/schemas/ApiError')),
+            new OA\Response(response: 404, description: 'Card not found'),
+        ]
+    )]
+    public function destroy(Card $card)
+    {
+        if (filled($card->image_path) && Storage::disk('local')->exists($card->image_path)) {
+            Storage::disk('local')->delete($card->image_path);
+        }
+
+        $card->delete();
+
+        return response()->json(['message' => 'Card deleted successfully']);
+    }
+
     public function image(Card $card)
     {
         if (! filled($card->image_path) || ! Storage::disk('local')->exists($card->image_path)) {
